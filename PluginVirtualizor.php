@@ -97,12 +97,6 @@ class PluginVirtualizor extends ServerPlugin
                         'description'     => lang('Enter the type of VM for this package (openvz, xen, xen hvm, or kvm).'),
                         'value'           => 'openvz',
                     ],
-                    'node_group' => [
-                        'type'            => 'text',
-                        'label'            => 'Node Group ID',
-                        'description'     => lang('Enter the id of the node group this VM is being created on.'),
-                        'value'           => '',
-                    ],
                     'ip_pool_id' => [
                         'type'            => 'text',
                         'label'           => 'IP Pool ID',
@@ -271,6 +265,12 @@ class PluginVirtualizor extends ServerPlugin
             'plid' => $planId,
             'virt' => $args['package']['variables']['vm_type'],
         ];
+
+        // Check for slave server id / location
+        if ($args['server']['variables']['plugin_virtualizor_VM_Location_Custom_Field'] != '') {
+            $data['slave_server'] = $userPackage->getCustomField($args['server']['variables']['plugin_virtualizor_VM_Location_Custom_Field'], CUSTOM_FIELDS_FOR_PACKAGE);
+        }
+
         $response = $this->api->addvs_v2($data);
         if ($response['done'] != true) {
             throw new CE_Exception(implode("\n", $response['error']));
