@@ -3,6 +3,7 @@
 require_once 'modules/admin/models/ServerPlugin.php';
 require_once 'plugins/server/virtualizor/sdk/admin.php';
 
+
 class PluginVirtualizor extends ServerPlugin
 {
     public $features = [
@@ -40,27 +41,27 @@ class PluginVirtualizor extends ServerPlugin
                 'type' => 'text',
                 'description' => lang('API Pass'),
                 'value' => '',
-                'encryptable'=>true
+                'encryptable'=> true
             ],
             lang('VM Password Custom Field') => [
-                'type'        => 'text',
+                'type' => 'text',
                 'description' => lang('Enter the name of the package custom field that will hold the VM Password.'),
-                'value'       => ''
+                'value' => ''
             ],
             lang('VM Hostname Custom Field') => [
-                'type'        => 'text',
+                'type' => 'text',
                 'description' => lang('Enter the name of the package custom field that will hold the VM hostname.'),
-                'value'       => ''
+                'value' => ''
             ],
             lang('VM Operating System Custom Field') => [
-                'type'        => 'text',
+                'type' => 'text',
                 'description' => lang('Enter the name of the package custom field that will hold the VM Operating System.'),
-                'value'       => ''
+                'value' => ''
             ],
             lang('VM Location Custom Field') => [
-                'type'        => 'text',
+                'type' => 'text',
                 'description' => lang('Enter the name of the package custom field that will hold the Location (Slave Server ID).  This is an optional setting only used if you have multiple locations/slaves'),
-                'value'       => ''
+                'value' => ''
             ],
             lang('Actions') => [
                 'type' => 'hidden',
@@ -82,31 +83,82 @@ class PluginVirtualizor extends ServerPlugin
                 'description' => lang('Supported signup addons variables'),
                 'value' => '',
             ],
-            lang('package_vars')  => [
-                'type'            => 'hidden',
-                'description'     => lang('Whether package settings are set'),
-                'value'           => '0',
+            lang('package_vars') => [
+                'type' => 'hidden',
+                'description' => lang('Whether package settings are set'),
+                'value' => '1',
             ],
             lang('package_vars_values') => [
-                'type'            => 'hidden',
-                'description'     => lang('Virtualizor Settings'),
-                'value'           => [
+                'type' => 'hidden',
+                'description' => lang('Virtualizor Settings'),
+                'value' => [
                     'vm_type' => [
-                        'type'            => 'text',
-                        'label'            => 'VM Type',
-                        'description'     => lang('Enter the type of VM for this package (openvz, xen, xen hvm, or kvm).'),
-                        'value'           => 'openvz',
+                        'type' => 'dropdown',
+                        'multiple' => false,
+                        'getValues' => 'getVMTypes',
+                        'label' => 'VM Type',
+                        'description' => lang('Select the type of VM for this package.'),
+                        'value' => 'openvz',
                     ],
                     'ip_pool_id' => [
-                        'type'            => 'text',
-                        'label'           => 'IP Pool ID',
-                        'description'     => lang('Enter the ID of the IP pool for this VPS.'),
-                        'value'           => '',
+                        'type' => 'text',
+                        'label' => 'IP Pool ID',
+                        'description' => lang('Enter the ID of the IP pool for this VPS.'),
+                        'value' => '',
                     ],
                 ]
             ]
         ];
         return $variables;
+    }
+
+    public function getVMTypes()
+    {
+        return [
+            'OpenVZ',
+            'KVM',
+            'Xen',
+            'XenServer',
+            'XenServer HVM',
+            'Xen',
+            'Xen HVM',
+            'LXC',
+            'Virtuozzo OpenVZ',
+            'Virtuozzo KVM',
+            'Proxmox OpenVZ',
+            'Proxmox KVM / QEMU',
+            'Proxmox LXC'
+        ];
+    }
+
+    private function getVirtType($virt)
+    {
+        switch ($virt) {
+            case 'OpenVZ':
+                return 'openvz';
+            case 'KVM':
+                return 'kvm';
+            case 'Xen':
+                return 'xen';
+            case 'XenServer':
+                return 'xcp';
+            case 'XenServer HVM':
+                return 'xcphvm';
+            case 'Xen HVM':
+                return 'xenhvm';
+            case 'LXC':
+                return 'lxc';
+            case 'Virtuozzo OpenVZ':
+                return 'vzo';
+            case 'Virtuozzo KVM':
+                return 'vzk';
+            case 'Proxmox OpenVZ':
+                return 'proxo';
+            case 'Proxmox KVM / QEMU':
+                return 'proxk';
+            case 'Proxmox LXC':
+                return 'proxl';
+        }
     }
 
     private function setup($args)
@@ -199,15 +251,11 @@ class PluginVirtualizor extends ServerPlugin
         $args = $this->buildParams($userPackage);
         $this->setup($args);
 
-        CE_Lib::log(4, $args);
-
         if ($args['package']['ServerAcctProperties'] == '') {
             return ['Create'];
         }
 
-
         $response = $this->api->listvs(1, 1, ['vpsid' => $args['package']['ServerAcctProperties']]);
-        CE_Lib::log(4, $response[array_key_first($response)]);
 
         $actions[] = 'Delete';
         if ($response[array_key_first($response)]['suspended'] === '1') {
@@ -215,25 +263,6 @@ class PluginVirtualizor extends ServerPlugin
         } else {
             $actions[] = 'Suspend';
         }
-
-        // try {
-        //     $request = $this->call($params, $args);
-        //     $actions[] = 'Delete';
-        //     if ($request['statusmsg'] == 'disabled') {
-
-        //     } else {
-        //         $actions[] = 'Suspend';
-        //         $actions[] = 'Reboot';
-        //         $actions[] = 'TUNTAP';
-        //         if ($request['statusmsg'] == 'offline') {
-        //             $actions[] = 'Boot';
-        //         } else {
-        //             $actions[] = 'Shutdown';
-        //         }
-        //     }
-        // } catch (Exception $e) {
-        //     $actions[] = 'Create';
-        // }
 
         return $actions;
     }
@@ -263,7 +292,7 @@ class PluginVirtualizor extends ServerPlugin
             'hostname' => $userPackage->getCustomField($args['server']['variables']['plugin_virtualizor_VM_Hostname_Custom_Field'], CUSTOM_FIELDS_FOR_PACKAGE),
             'rootpass' => html_entity_decode($userPackage->getCustomField($args['server']['variables']['plugin_virtualizor_VM_Password_Custom_Field'], CUSTOM_FIELDS_FOR_PACKAGE)),
             'plid' => $planId,
-            'virt' => $args['package']['variables']['vm_type'],
+            'virt' => $this->getVirtType($args['package']['variables']['vm_type']),
         ];
 
         // Check for slave server id / location
@@ -275,7 +304,6 @@ class PluginVirtualizor extends ServerPlugin
         if ($response['done'] != true) {
             throw new CE_Exception(implode("\n", $response['error']));
         }
-        CE_Lib::log(4, $response);
 
         $userPackage->setCustomField('Server Acct Properties', $response['vs_info']['vpsid']);
         $userPackage->setCustomField('IP Address', $response['vs_info']['ips'][0]);
