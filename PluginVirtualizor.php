@@ -3,7 +3,6 @@
 require_once 'modules/admin/models/ServerPlugin.php';
 require_once 'plugins/server/virtualizor/sdk/admin.php';
 
-
 class PluginVirtualizor extends ServerPlugin
 {
     public $features = [
@@ -293,6 +292,7 @@ class PluginVirtualizor extends ServerPlugin
             'rootpass' => html_entity_decode($userPackage->getCustomField($args['server']['variables']['plugin_virtualizor_VM_Password_Custom_Field'], CUSTOM_FIELDS_FOR_PACKAGE)),
             'plid' => $planId,
             'virt' => $this->getVirtType($args['package']['variables']['vm_type']),
+            'osid' => $userPackage->getCustomField($args['server']['variables']['plugin_virtualizor_VM_Operating_System_Custom_Field'], CUSTOM_FIELDS_FOR_PACKAGE)
         ];
 
         // Check for slave server id / location
@@ -308,6 +308,46 @@ class PluginVirtualizor extends ServerPlugin
         $userPackage->setCustomField('Server Acct Properties', $response['vs_info']['vpsid']);
         $userPackage->setCustomField('IP Address', $response['vs_info']['ips'][0]);
         $userPackage->setCustomField('Shared', 0);
+    }
+
+    function getDirectLink($userPackage, $getRealLink = true, $fromAdmin = false, $isReseller = false)
+    {
+        require_once 'plugins/server/virtualizor/sdk/enduser.php';
+        $args = $this->buildParams($userPackage);
+        $this->setup($args);
+
+        $linkText = $this->user->lang('Login to Virtualizor');
+
+        if ($fromAdmin) {
+            $cmd = 'panellogin';
+            return [
+                'cmd' => $cmd,
+                'label' => $linkText
+            ];
+        } elseif ($getRealLink) {
+            $admin = new Virtualizor_Enduser_API($this->host, $this->key, $this->pass, 4083, 1);
+            $url = $admin->sso($args['package']['ServerAcctProperties']);
+
+            return array(
+                'link'    => '<li><a target="_blank" href="' . $url .'">' .$linkText . '</a></li>',
+                'rawlink' =>  $url,
+                'form'    => ''
+            );
+        } else {
+            $link = 'index.php?fuse=clients&controller=products&action=openpackagedirectlink&packageId='.$userPackage->getId().'&sessionHash='.CE_Lib::getSessionHash();
+
+            return array(
+                'link' => '<li><a target="_blank" href="' . $link .  '">' .$linkText . '</a></li>',
+                'form' => ''
+            );
+        }
+    }
+
+    public function dopanellogin($args)
+    {
+        $userPackage = new UserPackage($args['userPackageId']);
+        $response = $this->getDirectLink($userPackage);
+        return $response['rawlink'];
     }
 
 
