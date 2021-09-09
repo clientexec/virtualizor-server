@@ -59,7 +59,12 @@ class PluginVirtualizor extends ServerPlugin
             ],
             lang('VM Location Custom Field') => [
                 'type' => 'text',
-                'description' => lang('Enter the name of the package custom field that will hold the Location (Slave Server ID).  This is an optional setting only used if you have multiple locations/slaves'),
+                'description' => lang('Enter the name of the package custom field that will hold the Location (Slave Server ID).'),
+                'value' => ''
+            ],
+            lang('VM Location Group Custom Field') => [
+                'type' => 'text',
+                'description' => lang('Enter the name of the package custom field that will hold the Location (Server Group ID).'),
                 'value' => ''
             ],
             lang('Actions') => [
@@ -105,6 +110,12 @@ class PluginVirtualizor extends ServerPlugin
                         'description' => lang('Enter the ID of the IP pool for this VPS.'),
                         'value' => '',
                     ],
+                    'storage_id' => [
+                        'type' => 'text',
+                        'label' => 'Storage ID',
+                        'description' => lang('Enter the Storage ID for this plan if you are not using primary storage.'),
+                        'value' => '',
+                    ],
                 ]
             ]
         ];
@@ -114,19 +125,18 @@ class PluginVirtualizor extends ServerPlugin
     public function getVMTypes()
     {
         return [
-            'OpenVZ',
-            'KVM',
-            'Xen',
-            'XenServer',
-            'XenServer HVM',
-            'Xen',
-            'Xen HVM',
-            'LXC',
-            'Virtuozzo OpenVZ',
-            'Virtuozzo KVM',
-            'Proxmox OpenVZ',
-            'Proxmox KVM / QEMU',
-            'Proxmox LXC'
+            'OpenVZ' => 'OpenVZ',
+            'KVM' => 'KVM',
+            'Xen' => 'Xen',
+            'XenServer' => 'XenServer',
+            'XenServer HVM' => 'XenServer HVM',
+            'Xen HVM' => 'Xen HVM',
+            'LXC' => 'LXC',
+            'Virtuozzo OpenVZ' => 'Virtuozzo OpenVZ',
+            'Virtuozzo KVM' => 'Virtuozzo KVM',
+            'Proxmox OpenVZ' => 'Proxmox OpenVZ',
+            'Proxmox KVM / QEMU' => 'Proxmox KVM / QEMU',
+            'Proxmox LXC' => 'Proxmox LXC'
         ];
     }
 
@@ -255,6 +265,10 @@ class PluginVirtualizor extends ServerPlugin
         }
 
         $response = $this->api->listvs(1, 1, ['vpsid' => $args['package']['ServerAcctProperties']]);
+        if (!isset($response[array_key_first($response)]['suspended'])) {
+            // if this isn't set, it means the VPS doesn't exist
+            return ['Create'];
+        }
 
         $actions[] = 'Delete';
         if ($response[array_key_first($response)]['suspended'] === '1') {
@@ -295,9 +309,23 @@ class PluginVirtualizor extends ServerPlugin
             'osid' => $userPackage->getCustomField($args['server']['variables']['plugin_virtualizor_VM_Operating_System_Custom_Field'], CUSTOM_FIELDS_FOR_PACKAGE)
         ];
 
+        // check for storage id
+        if ($args['package']['variables']['storage_id'] != '') {
+            $data['stid'] = $args['package']['variables']['storage_id'];
+        }
+
+        // check for ip pool id
+        if ($args['package']['variables']['ip_pool_id'] != '') {
+            $data['ippoolid '] = $args['package']['variables']['ip_pool_id'];
+        }
+
         // Check for slave server id / location
         if ($args['server']['variables']['plugin_virtualizor_VM_Location_Custom_Field'] != '') {
             $data['slave_server'] = $userPackage->getCustomField($args['server']['variables']['plugin_virtualizor_VM_Location_Custom_Field'], CUSTOM_FIELDS_FOR_PACKAGE);
+        } elseif ($args['server']['variables']['plugin_virtualizor_VM_Location_Group_Custom_Field'] != '') {
+            $data['server_group'] = $userPackage->getCustomField($args['server']['variables']['plugin_virtualizor_VM_Location_Group_Custom_Field'], CUSTOM_FIELDS_FOR_PACKAGE);
+        } else {
+            $data['slave_server'] = 'auto';
         }
 
         $response = $this->api->addvs_v2($data);
