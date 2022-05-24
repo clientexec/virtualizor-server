@@ -9,7 +9,8 @@ class PluginVirtualizor extends ServerPlugin
         'packageName' => true,
         'testConnection' => true,
         'showNameservers' => false,
-        'directlink' => true
+        'directlink' => true,
+        'upgrades' => true
     ];
 
     private $host;
@@ -34,13 +35,13 @@ class PluginVirtualizor extends ServerPlugin
                 'type' => 'text',
                 'description' => lang('API Key'),
                 'value' => '',
-                'encryptable'=>true
+                'encryptable' => true
             ],
             lang('API Pass') => [
                 'type' => 'text',
                 'description' => lang('API Pass'),
                 'value' => '',
-                'encryptable'=> true
+                'encryptable' => true
             ],
             lang('VM Password Custom Field') => [
                 'type' => 'text',
@@ -66,6 +67,11 @@ class PluginVirtualizor extends ServerPlugin
                 'type' => 'text',
                 'description' => lang('Enter the name of the package custom field that will hold the Location (Server Group ID).'),
                 'value' => ''
+            ],
+            lang('Use Standard Ports for SSO?') => [
+                'type' => 'yesno',
+                'description' => lang('If selected, SSO will use port 443 instead of 4083.'),
+                'value' => '0'
             ],
             lang('Actions') => [
                 'type' => 'hidden',
@@ -178,11 +184,11 @@ class PluginVirtualizor extends ServerPlugin
         $this->api = new Virtualizor_Admin_API($this->host, $this->key, $this->pass);
     }
 
-    function validateCredentials($args)
+    public function validateCredentials($args)
     {
     }
 
-    function doDelete($args)
+    public function doDelete($args)
     {
         $userPackage = new UserPackage($args['userPackageId']);
         $args = $this->buildParams($userPackage);
@@ -191,7 +197,7 @@ class PluginVirtualizor extends ServerPlugin
         return $VM_Hostname . ' has been deleted.';
     }
 
-    function doCreate($args)
+    public function doCreate($args)
     {
         $userPackage = new UserPackage($args['userPackageId']);
         $args = $this->buildParams($userPackage);
@@ -200,7 +206,15 @@ class PluginVirtualizor extends ServerPlugin
         return $VM_Hostname . ' has been created.';
     }
 
-    function doSuspend($args)
+    public function doUpdate($args)
+    {
+        $userPackage = new UserPackage($args['userPackageId']);
+        $this->update($this->buildParams($userPackage, $args));
+        $VM_Hostname = $userPackage->getCustomField($args['server']['variables']['plugin_virtualizor_VM_Hostname_Custom_Field'], CUSTOM_FIELDS_FOR_PACKAGE);
+        return $VM_Hostname . ' has been update.';
+    }
+
+    public function doSuspend($args)
     {
         $userPackage = new UserPackage($args['userPackageId']);
         $args = $this->buildParams($userPackage);
@@ -209,7 +223,7 @@ class PluginVirtualizor extends ServerPlugin
         return $VM_Hostname . ' has been suspended.';
     }
 
-    function doUnSuspend($args)
+    public function doUnSuspend($args)
     {
         $userPackage = new UserPackage($args['userPackageId']);
         $args = $this->buildParams($userPackage);
@@ -218,7 +232,25 @@ class PluginVirtualizor extends ServerPlugin
         return $VM_Hostname . ' has been unsuspended.';
     }
 
-    function unsuspend($args)
+    public function update($args)
+    {
+        $this->setup($args);
+        $id = $args['package']['ServerAcctProperties'];
+        if (isset($args['changes']['package'])) {
+            $planId = $this->getPlanId($args['package']['name_on_server']);
+            $data = [
+                'vpsid' => $id,
+                'plid' => $planId
+            ];
+            $result = $this->api->managevps($data);
+
+            if ($result['done'] != true) {
+                throw new CE_Exception(implode('<br>', $result['error']));
+            }
+        }
+    }
+
+    public function unsuspend($args)
     {
         $this->setup($args);
         $id = $args['package']['ServerAcctProperties'];
@@ -229,7 +261,7 @@ class PluginVirtualizor extends ServerPlugin
         }
     }
 
-    function suspend($args)
+    public function suspend($args)
     {
         $this->setup($args);
         $id = $args['package']['ServerAcctProperties'];
@@ -240,7 +272,7 @@ class PluginVirtualizor extends ServerPlugin
         }
     }
 
-    function delete($args)
+    public function delete($args)
     {
         $this->setup($args);
         $id = $args['package']['ServerAcctProperties'];
@@ -255,7 +287,7 @@ class PluginVirtualizor extends ServerPlugin
         $userPackage->setCustomField('Server Acct Properties', '');
     }
 
-    function getAvailableActions($userPackage)
+    public function getAvailableActions($userPackage)
     {
         $args = $this->buildParams($userPackage);
         $this->setup($args);
@@ -280,24 +312,12 @@ class PluginVirtualizor extends ServerPlugin
         return $actions;
     }
 
-    function create($args)
+    public function create($args)
     {
         $this->setup($args);
         $userPackage = new UserPackage($args['package']['id']);
 
-        // Get Plan Id
-        $planId = false;
-        $plans = $this->api->plans(1, 1, ['planname' => $args['package']['name_on_server']]);
-        if (is_array($plans['plans'])) {
-            foreach ($plans['plans'] as $plan) {
-                if ($plan['plan_name'] == $args['package']['name_on_server']) {
-                    $planId = $plan['plid'];
-                }
-            }
-        }
-        if ($planId === false) {
-            throw new CE_Exception('Could not find Plan Id for Plan Name: ' . $args['package']['name_on_server']);
-        }
+        $planId = $this->getPlanId($args['package']['name_on_server']);
 
         $data = [
             'user_email' => $args['customer']['email'],
@@ -338,7 +358,7 @@ class PluginVirtualizor extends ServerPlugin
         $userPackage->setCustomField('Shared', 0);
     }
 
-    function getDirectLink($userPackage, $getRealLink = true, $fromAdmin = false, $isReseller = false)
+    public function getDirectLink($userPackage, $getRealLink = true, $fromAdmin = false, $isReseller = false)
     {
         require_once 'plugins/server/virtualizor/sdk/enduser.php';
         $args = $this->buildParams($userPackage);
@@ -353,19 +373,24 @@ class PluginVirtualizor extends ServerPlugin
                 'label' => $linkText
             ];
         } elseif ($getRealLink) {
-            $admin = new Virtualizor_Enduser_API($this->host, $this->key, $this->pass, 4083, 1);
+            $port = 4083;
+            if ($args['server']['variables']['plugin_virtualizor_Use_Standard_Ports_for_SSO?'] == 1) {
+                $port = 443;
+            }
+
+            $admin = new Virtualizor_Enduser_API($this->host, $this->key, $this->pass, $port, 1);
             $url = $admin->sso($args['package']['ServerAcctProperties']);
 
             return array(
-                'link'    => '<li><a target="_blank" href="' . $url .'">' .$linkText . '</a></li>',
+                'link'    => '<li><a target="_blank" href="' . $url . '">' . $linkText . '</a></li>',
                 'rawlink' =>  $url,
                 'form'    => ''
             );
         } else {
-            $link = 'index.php?fuse=clients&controller=products&action=openpackagedirectlink&packageId='.$userPackage->getId().'&sessionHash='.CE_Lib::getSessionHash();
+            $link = 'index.php?fuse=clients&controller=products&action=openpackagedirectlink&packageId=' . $userPackage->getId() . '&sessionHash=' . CE_Lib::getSessionHash();
 
             return array(
-                'link' => '<li><a target="_blank" href="' . $link .  '">' .$linkText . '</a></li>',
+                'link' => '<li><a target="_blank" href="' . $link .  '">' . $linkText . '</a></li>',
                 'form' => ''
             );
         }
@@ -386,5 +411,24 @@ class PluginVirtualizor extends ServerPlugin
         if ($result == '') {
             throw new CE_Exception("Connection to server failed.");
         }
+    }
+
+    private function getPlanId($packageName)
+    {
+        $planId = false;
+        $plans = $this->api->plans(1, 1, ['planname' => urlencode($packageName)]);
+
+        if (is_array($plans['plans'])) {
+            foreach ($plans['plans'] as $plan) {
+                if ($plan['plan_name'] == $packageName) {
+                    $planId = $plan['plid'];
+                }
+            }
+        }
+
+        if ($planId === false) {
+            throw new CE_Exception('Could not find Plan Id for Plan Name: ' . $args['package']['name_on_server']);
+        }
+        return $planId;
     }
 }
