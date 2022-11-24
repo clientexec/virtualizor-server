@@ -343,8 +343,16 @@ class Virtualizor_Admin_API
         return $ret;
     }
 
-    function iprange($page = 1, $reslen = 50, $post)
+    function iprange($page, $reslen, $post)
     {
+        if ($page == '') {
+            $page = 1;
+        }
+
+        if ($reslen == '') {
+            $reslen = 50;
+        }
+
         if (empty($post)) {
             $path = 'index.php?act=ipranges&page='.$page.'&reslen='.$reslen;
             $ret = $this->call($path, array(), $post);
