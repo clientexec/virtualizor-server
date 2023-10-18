@@ -382,17 +382,20 @@ class PluginVirtualizor extends ServerPlugin
             $url = $admin->sso($args['package']['ServerAcctProperties']);
 
             return array(
-                'link'    => '<li><a target="_blank" href="' . $url . '">' . $linkText . '</a></li>',
-                'rawlink' =>  $url,
-                'form'    => ''
+                'fa' => 'fa fa-user fa-fw',
+                'link' => $url,
+                'text' => $linkText,
+                'form' => ''
             );
         } else {
             $link = 'index.php?fuse=clients&controller=products&action=openpackagedirectlink&packageId=' . $userPackage->getId() . '&sessionHash=' . CE_Lib::getSessionHash();
 
-            return array(
-                'link' => '<li><a target="_blank" href="' . $link .  '">' . $linkText . '</a></li>',
+            return [
+                'fa' => 'fa fa-user fa-fw',
+                'link' => $link,
+                'text' => $linkText,
                 'form' => ''
-            );
+            ];
         }
     }
 
